@@ -1,60 +1,62 @@
 package services;
 
-import utils.User;
+import exception.AuthenticationException;
+import exception.UserAlreadyExistsException;
+import exception.UserDoesntExistException;
+import interfaces.IAuthenticationService;
+import interfaces.ISaltService;
 import interfaces.IUserService;
+import utils.AuthenticationToken;
+import utils.User;
 
-import java.security.NoSuchAlgorithmException;
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 public class UserService implements IUserService {
-    private final Map<String, User> userCache = new HashMap<>();
+    private final IAuthenticationService authenticationService;
+    private final ISaltService saltService;
+    private final List<User> userCache = new ArrayList<>();
     private final Map<String, byte[]> userSaltCache = new HashMap<>();
 
-    public UserService() {
-    }
-
-    private boolean isValidUser(User user) {
-        return userCache.containsKey(user.getUserName());
+    public UserService(IAuthenticationService authenticationService, ISaltService saltService) {
+        this.authenticationService = authenticationService;
+        this.saltService = saltService;
     }
 
     @Override
-    public boolean addUser(String userName, String password, byte[] salt) throws NoSuchAlgorithmException {
+    public User addUser(String userName, String password) throws UserAlreadyExistsException {
+        byte[] salt = saltService.getSalt();
+        String saltedPassword = saltService.get_SHA_1_SecurePassword(password, salt);
+
         userSaltCache.put(userName, salt);
-        User user = new User(userName, password);
-        if (!isValidUser(user)) {
-            userCache.put(user.getUserName(), user);
-            return true;
+        User user = new User(userName, saltedPassword);
+        if (!userCache.contains(user)) {
+            userCache.add(user);
+            return user;
         }
-        return false;
+        throw new UserAlreadyExistsException("User "+ user +" already exists");
     }
 
     @Override
-    public boolean deleteUser(String userName) {
-        if (userCache.containsKey(userName)) {
-            userCache.remove(userName);
-            return true;
+    public void deleteUser(User user) throws UserDoesntExistException {
+        if (!userCache.remove(user))
+            throw new UserDoesntExistException("User "+ user + " does not exist");
+    }
+
+    @Override
+    public boolean containsUser(User user) {
+        return userCache.contains(user);
+    }
+
+    @Override
+    public AuthenticationToken authenticate(String userName, String password) throws AuthenticationException {
+        String saltedPassword = saltService.get_SHA_1_SecurePassword(password, saltService.getSalt());
+        User userToAuthenticate = new User(userName, saltedPassword);
+        if (userCache.contains(userToAuthenticate)) {
+            return authenticationService.getAuthenticationToken(userToAuthenticate);
         }
-        return false;
-    }
-
-    @Override
-    public User getUser(String userName) {
-        return userCache.get(userName);
-    }
-
-    @Override
-    public boolean isUserPresent(String userName) {
-        return userCache.containsKey(userName);
-    }
-
-    @Override
-    public boolean isUserSaltPresent(String userName) {
-        return userSaltCache.containsKey(userName);
-    }
-
-    @Override
-    public byte[] getSalt(String userName) {
-        return userSaltCache.get(userName);
+        throw new AuthenticationException("Failed to authenticate as user " + userName + " not present");
     }
 }

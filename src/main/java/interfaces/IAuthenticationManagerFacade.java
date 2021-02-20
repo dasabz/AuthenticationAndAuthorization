@@ -1,32 +1,36 @@
 package interfaces;
 
+import exception.*;
 import utils.AuthenticationToken;
-import utils.AuthenticationStatus;
-import utils.UserRole;
+import utils.Role;
+import utils.User;
 
-import java.security.NoSuchAlgorithmException;
 import java.util.List;
 /*
-
+    This facade is basically a manager which coordinates the various microservices.
  */
 public interface IAuthenticationManagerFacade {
-    AuthenticationStatus createUser(String userName, String password) throws NoSuchAlgorithmException;
+    User createUser(String userName, String password) throws UserAlreadyExistsException;
 
-    AuthenticationStatus deleteUser(String userName);
+    void deleteUser(User user) throws UserDoesntExistException;
 
-    AuthenticationStatus createRole(UserRole userRole);
+    void createRole(Role role) throws RoleAlreadyExistsException;
 
-    AuthenticationStatus deleteRole(UserRole userRole);
+    void deleteRole(Role role) throws RoleDoesNotExistException;
 
-    AuthenticationStatus addRoleToUser(String userName, UserRole userRole);
+    void addRoleToUser(User user, Role role) throws AuthenticationException;
 
-    AuthenticationToken authenticate(String userName, String password) throws Exception;
+    AuthenticationToken authenticate(String userName, String password) throws AuthenticationException;
 
-    AuthenticationToken authenticateAnonymous() throws Exception;
+    AuthenticationToken authenticateAnonymous() throws AuthenticationException;
 
-    void invalidatePreExpiredToken(AuthenticationToken authenticationToken) throws Exception;
+    void invalidatePreExpiredToken(AuthenticationToken authenticationToken) throws AuthenticationException;
 
-    boolean checkRole(AuthenticationToken authenticationToken, UserRole role) throws Exception;
+    boolean checkRole(User user, Role role) throws AuthenticationException;
 
-    List<UserRole> getAllRoles(AuthenticationToken authenticationToken) throws Exception;
+    List<Role> getAllRoles(User user) throws AuthenticationException;
+
+    boolean containsUser(User expectedUser);
+
+    boolean containsRole(Role normalUser);
 }

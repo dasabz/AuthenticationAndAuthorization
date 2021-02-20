@@ -4,15 +4,16 @@ import java.util.Objects;
 import java.util.UUID;
 
 public class AuthenticationToken {
-    String uniqueToken;
-    AuthenticationStatus authenticationStatus;
-    public AuthenticationToken(String userName, AuthenticationStatus authenticationStatus) {
-        this.uniqueToken = userName + UUID.randomUUID().toString();
-        this.authenticationStatus = authenticationStatus;
+    private final String uniqueToken;
+    private final User user;
+
+    public AuthenticationToken(User user) {
+        this.uniqueToken = user.getUserName() + UUID.randomUUID().toString();
+        this.user = user;
     }
 
-    public AuthenticationStatus getResultStatus() {
-        return authenticationStatus;
+    public User getUser() {
+        return user;
     }
 
     @Override
@@ -20,12 +21,11 @@ public class AuthenticationToken {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         AuthenticationToken token = (AuthenticationToken) o;
-        return Objects.equals(uniqueToken, token.uniqueToken) &&
-                authenticationStatus == token.authenticationStatus;
+        return Objects.equals(uniqueToken, token.uniqueToken) && Objects.equals(user, token.user);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(uniqueToken, authenticationStatus);
+        return Objects.hash(uniqueToken, user);
     }
 }

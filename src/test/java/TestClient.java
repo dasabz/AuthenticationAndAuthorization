@@ -1,115 +1,151 @@
 import authentication.AuthenticationManagerFacade;
+import exception.*;
 import org.junit.Assert;
 import org.junit.jupiter.api.Assertions;
+import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
+import org.mockito.Mockito;
 import services.AuthenticationService;
 import services.RoleService;
 import services.SaltService;
 import services.UserService;
-import utils.AuthenticationStatus;
 import utils.AuthenticationToken;
-import utils.UserRole;
+import utils.Role;
+import utils.User;
 
-import java.security.NoSuchAlgorithmException;
 import java.util.Arrays;
 import java.util.concurrent.TimeUnit;
 
-
 class TestClient {
-    private final int preExpiryTime = 5;
+    private static final SaltService saltService = Mockito.mock(SaltService.class);
+    private final int preExpiryTime = 2;
+    AuthenticationService authenticationService = new AuthenticationService(preExpiryTime, TimeUnit.MILLISECONDS);
+    RoleService roleService = new RoleService(authenticationService);
+    UserService userService = new UserService(authenticationService, saltService);
+    User user = new User("User1", "Password1");
+    User expectedUser = new User("User1", "MockPassword1");
+
     private final AuthenticationManagerFacade authenticationManagerFacade = new AuthenticationManagerFacade(
-            new UserService(),
-            new RoleService(),
-            new SaltService(),
-            new AuthenticationService(preExpiryTime, TimeUnit.SECONDS),
+            userService,
+            roleService,
+            saltService,
+            authenticationService,
             false
     );
 
-    @Test
-    public void createUser() throws NoSuchAlgorithmException {
-        Assert.assertEquals(AuthenticationStatus.Success, authenticationManagerFacade.createUser("Client1", "Password1"));
-        Assert.assertEquals(AuthenticationStatus.Failure_User_Already_Exists, authenticationManagerFacade.createUser("Client1", "Password1"));
-
-        Assert.assertEquals(AuthenticationStatus.Success, authenticationManagerFacade.createUser("Client2", "Password2"));
-        Assert.assertEquals(AuthenticationStatus.Failure_User_Already_Exists, authenticationManagerFacade.createUser("Client2", "Password2"));
+    @BeforeAll
+    public static void init() {
+        byte[] dummy = new byte[]{1, 2, 3};
+        Mockito.when(saltService.getSalt()).thenReturn(dummy);
+        Mockito.when(saltService.get_SHA_1_SecurePassword("Password1", dummy)).thenReturn("MockPassword1");
+        Mockito.when(saltService.get_SHA_1_SecurePassword("Password2", dummy)).thenReturn("MockPassword2");
     }
 
     @Test
-    public void deleteUser() throws NoSuchAlgorithmException {
-        Assert.assertEquals(AuthenticationStatus.Success, authenticationManagerFacade.createUser("Client1", "Password1"));
-        Assert.assertEquals(AuthenticationStatus.Success, authenticationManagerFacade.deleteUser("Client1"));
-        Assert.assertEquals(AuthenticationStatus.Failure_User_Does_Not_Exist, authenticationManagerFacade.deleteUser("Client1"));
+    public void testCreateUser() throws UserAlreadyExistsException {
+        User expectedUser = new User("User1", "MockPassword1");
+        Assert.assertEquals(expectedUser, authenticationManagerFacade.createUser("User1", "Password1"));
+        Assertions.assertThrows(UserAlreadyExistsException.class, () -> authenticationManagerFacade.createUser("User1", "Password1"));
+
+        //Another user can have the same username as user1 but a different password, even he should be allowed
+        User expectedUserWithSameUserName = new User("User1", "MockPassword2");
+        Assert.assertEquals(expectedUserWithSameUserName, authenticationManagerFacade.createUser("User1", "Password2"));
     }
 
     @Test
-    public void createRole() {
-        Assert.assertEquals(AuthenticationStatus.Failure_User_Not_Allowed_To_Create_Admin_Role, authenticationManagerFacade.createRole(UserRole.Admin));
-        Assert.assertEquals(AuthenticationStatus.Success, authenticationManagerFacade.createRole(UserRole.NormalUser));
-        Assert.assertEquals(AuthenticationStatus.Failure_Role_Already_Exists, authenticationManagerFacade.createRole(UserRole.NormalUser));
+    public void testDeleteUser() throws UserAlreadyExistsException, UserDoesntExistException {
+        User expectedUser = new User("User1", "MockPassword1");
+        Assert.assertEquals(expectedUser, authenticationManagerFacade.createUser("User1", "Password1"));
+
+        authenticationManagerFacade.deleteUser(expectedUser);
+        Assert.assertFalse(authenticationManagerFacade.containsUser(expectedUser));
+        Assertions.assertThrows(UserDoesntExistException.class, () -> authenticationManagerFacade.deleteUser(expectedUser));
     }
 
     @Test
-    public void deleteRole() {
-        Assert.assertEquals(AuthenticationStatus.Failure_User_Not_Allowed_To_Delete_Admin_Role, authenticationManagerFacade.deleteRole(UserRole.Admin));
-        Assert.assertEquals(AuthenticationStatus.Success, authenticationManagerFacade.createRole(UserRole.NormalUser));
-        Assert.assertEquals(AuthenticationStatus.Success, authenticationManagerFacade.deleteRole(UserRole.NormalUser));
-
-        Assert.assertEquals(AuthenticationStatus.Failure_Role_Does_Not_Exist, authenticationManagerFacade.deleteRole(UserRole.NormalUser));
+    public void testCreateRole() throws RoleAlreadyExistsException {
+        authenticationManagerFacade.createRole(Role.NormalUser);
+        Assert.assertTrue(authenticationManagerFacade.containsRole(Role.NormalUser));
+        Assertions.assertThrows(RoleAlreadyExistsException.class, () -> authenticationManagerFacade.createRole(Role.NormalUser));
+        authenticationManagerFacade.createRole(Role.PrivilegedUser);
+        Assert.assertTrue(authenticationManagerFacade.containsRole(Role.PrivilegedUser));
     }
 
     @Test
-    public void addRoleToUser() throws NoSuchAlgorithmException {
-        Assert.assertEquals(AuthenticationStatus.Failure_User_Does_Not_Exist, authenticationManagerFacade.addRoleToUser("Client1", UserRole.NormalUser));
-        Assert.assertEquals(AuthenticationStatus.Success, authenticationManagerFacade.createUser("Client1", "Password1"));
-        Assert.assertEquals(AuthenticationStatus.Success, authenticationManagerFacade.addRoleToUser("Client1", UserRole.NormalUser));
-        Assert.assertEquals(AuthenticationStatus.Failure_Cannot_Attach_Admin_Role_To_User, authenticationManagerFacade.addRoleToUser("Client1", UserRole.Admin));
+    public void testDeleteRole() throws RoleAlreadyExistsException, RoleDoesNotExistException {
+        authenticationManagerFacade.createRole(Role.NormalUser);
+        Assert.assertTrue(authenticationManagerFacade.containsRole(Role.NormalUser));
+        authenticationManagerFacade.deleteRole(Role.NormalUser);
+        Assert.assertFalse(authenticationManagerFacade.containsRole(Role.NormalUser));
+        Assertions.assertThrows(RoleDoesNotExistException.class, () -> authenticationManagerFacade.deleteRole(Role.NormalUser));
+        Assertions.assertThrows(RoleDoesNotExistException.class, () -> authenticationManagerFacade.deleteRole(Role.PrivilegedUser));
     }
 
     @Test
-    public void authenticate() throws Exception {
-        Assertions.assertThrows(Exception.class, () -> authenticationManagerFacade.authenticate("Client1", "Password1"));
-        Assert.assertEquals(AuthenticationStatus.Success, authenticationManagerFacade.createUser("Client1", "Password1"));
+    public void testAddRoleToUser() throws AuthenticationException, UserAlreadyExistsException, RoleAlreadyExistsException {
+        User user = new User("User1", "Password1");
+        User expectedUser = new User("User1", "MockPassword1");
+        Assertions.assertThrows(AuthenticationException.class, () -> authenticationManagerFacade.addRoleToUser(user, Role.NormalUser));
+        Assert.assertEquals(expectedUser, authenticationManagerFacade.createUser("User1", "Password1"));
+        authenticationManagerFacade.createRole(Role.NormalUser);
+        authenticationManagerFacade.addRoleToUser(user, Role.NormalUser);
+        authenticationManagerFacade.addRoleToUser(user, Role.PrivilegedUser);
+        Assert.assertTrue(authenticationManagerFacade.checkRole(user, Role.NormalUser));
+        Assert.assertEquals(Arrays.asList(Role.NormalUser, Role.PrivilegedUser), authenticationManagerFacade.getAllRoles(user));
+    }
+
+    @Test
+    public void testAuthenticate() throws Exception {
+        Assertions.assertThrows(AuthenticationException.class, () -> authenticationManagerFacade.authenticate("Client1", "Password1"));
+        authenticationManagerFacade.createUser("Client1", "Password1");
         Assert.assertNotNull(authenticationManagerFacade.authenticate("Client1", "Password1"));
     }
 
     @Test
-    public void authenticateAnonymous() throws Exception {
-        Assertions.assertThrows(Exception.class, authenticationManagerFacade::authenticateAnonymous);
+    public void testAuthenticateAnonymous() throws Exception {
+        Assertions.assertThrows(AuthenticationException.class, authenticationManagerFacade::authenticateAnonymous);
         AuthenticationManagerFacade authenticationManagerFacade = new AuthenticationManagerFacade(
-                new UserService(),
-                new RoleService(),
+                userService,
+                roleService,
                 new SaltService(),
-                new AuthenticationService(preExpiryTime, TimeUnit.SECONDS),
+                authenticationService,
                 true
         );
         Assert.assertNotNull(authenticationManagerFacade.authenticateAnonymous());
     }
 
     @Test
-    public void invalidatePreExpiredToken() throws Exception {
-        Assert.assertEquals(AuthenticationStatus.Success, authenticationManagerFacade.createUser("Client1", "Password1"));
+    public void testInvalidatePreExpiredToken() throws Exception {
+        authenticationManagerFacade.createUser("Client1", "Password1");
         AuthenticationToken token = authenticationManagerFacade.authenticate("Client1", "Password1");
+        Assert.assertNotNull(token);
         authenticationManagerFacade.invalidatePreExpiredToken(token);
+        Assertions.assertThrows(AuthenticationException.class, () -> authenticationManagerFacade.addRoleToUser(expectedUser, Role.NormalUser));
     }
 
     @Test
-    public void checkRole() throws Exception {
-        Assert.assertEquals(AuthenticationStatus.Success, authenticationManagerFacade.createUser("Client1", "Password1"));
-        AuthenticationToken token = authenticationManagerFacade.authenticate("Client1", "Password1");
-        Assert.assertEquals(AuthenticationStatus.Success, authenticationManagerFacade.addRoleToUser("Client1", UserRole.NormalUser));
-        Assert.assertTrue(authenticationManagerFacade.checkRole(token, UserRole.NormalUser));
+    public void testCheckRoleForUser() throws AuthenticationException, UserAlreadyExistsException, RoleAlreadyExistsException, InterruptedException {
+        Assertions.assertThrows(AuthenticationException.class, () -> authenticationManagerFacade.addRoleToUser(user, Role.NormalUser));
+        Assert.assertEquals(expectedUser, authenticationManagerFacade.createUser("User1", "Password1"));
+        authenticationManagerFacade.createRole(Role.NormalUser);
+        authenticationManagerFacade.addRoleToUser(user, Role.NormalUser);
+        Assert.assertTrue(authenticationManagerFacade.checkRole(user, Role.NormalUser));
     }
 
     @Test
-    public void getAllRoles() throws Exception {
-        Assert.assertEquals(AuthenticationStatus.Success, authenticationManagerFacade.createUser("Client1", "Password1"));
-        AuthenticationToken token = authenticationManagerFacade.authenticate("Client1", "Password1");
-        Assert.assertEquals(AuthenticationStatus.Success, authenticationManagerFacade.addRoleToUser("Client1", UserRole.NormalUser));
-        Assert.assertEquals(AuthenticationStatus.Success, authenticationManagerFacade.addRoleToUser("Client1", UserRole.PrivilegedUser));
-        Assert.assertEquals(Arrays.asList(UserRole.NormalUser, UserRole.PrivilegedUser), authenticationManagerFacade.getAllRoles(token));
+    public void testGetAllRoles() throws Exception, RoleAlreadyExistsException {
+        Assert.assertEquals(expectedUser, authenticationManagerFacade.createUser("User1", "Password1"));
+        authenticationManagerFacade.createRole(Role.NormalUser);
 
-        Thread.sleep(preExpiryTime * 1000);
-        Assertions.assertThrows(Exception.class, () -> authenticationManagerFacade.getAllRoles(token));
+        authenticationManagerFacade.addRoleToUser(user, Role.NormalUser);
+        authenticationManagerFacade.addRoleToUser(user, Role.PrivilegedUser);
+        Assert.assertTrue(authenticationManagerFacade.checkRole(user, Role.NormalUser));
+
+        Thread.sleep(preExpiryTime +1); // time offset as time may not be exactly in sync across junit thread and executor thread causing flakiness
+        //Trying after token has expired gives an exception that authentication has expired.
+        Assertions.assertThrows(AuthenticationException.class, () -> authenticationManagerFacade.getAllRoles(user));
+        //On trying again it re-authenticates and thus can verify the roles correctly
+        Assert.assertTrue(authenticationManagerFacade.checkRole(user, Role.NormalUser));
     }
 }
 

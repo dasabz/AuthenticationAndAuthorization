@@ -1,7 +1,6 @@
 package utils;
 
-public enum UserRole {
-    Admin,
+public enum Role {
     NormalUser,
     PrivilegedUser
 }

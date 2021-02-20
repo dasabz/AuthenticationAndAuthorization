@@ -1,19 +1,21 @@
 package interfaces;
 
+import exception.AuthenticationException;
+import exception.UserAlreadyExistsException;
+import exception.UserDoesntExistException;
+import utils.AuthenticationToken;
 import utils.User;
 
-import java.security.NoSuchAlgorithmException;
-
+/*
+    This microservice helps in adding and deleting users and also facilitates the authentication of a user once the user is created
+     with the help of the authentication microservice
+ */
 public interface IUserService {
-    boolean addUser(String userName, String password, byte[] salt) throws NoSuchAlgorithmException;
+    User addUser(String userName, String password) throws UserAlreadyExistsException;
 
-    boolean deleteUser(String userName);
+    void deleteUser(User user) throws UserDoesntExistException;
 
-    User getUser(String userName);
+    boolean containsUser(User user);
 
-    boolean isUserPresent(String userName);
-
-    boolean isUserSaltPresent(String userName);
-
-    byte[] getSalt(String userName);
+    AuthenticationToken authenticate(String userName, String password) throws AuthenticationException;
 }

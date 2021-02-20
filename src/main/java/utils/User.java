@@ -5,6 +5,7 @@ import java.util.Objects;
 public class User {
     private String userName;
     private String password;
+    private boolean isTokenExpired = false;
 
     public User(String userName, String password) {
         this.userName = userName;
@@ -46,5 +47,13 @@ public class User {
 
     public void setPassword(String password) {
         this.password = password;
+    }
+
+    public void setIsTokenExpired(boolean isTokenExpired) {
+        this.isTokenExpired = isTokenExpired;
+    }
+
+    public boolean getIsTokenExpired() {
+        return isTokenExpired;
     }
 }

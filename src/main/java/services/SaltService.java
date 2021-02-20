@@ -5,11 +5,17 @@ import java.security.NoSuchAlgorithmException;
 import java.security.SecureRandom;
 
 public class SaltService implements interfaces.ISaltService {
-
-    public byte[] getSalt() throws NoSuchAlgorithmException {
-        SecureRandom sr = SecureRandom.getInstance("SHA1PRNG");
+    private SecureRandom secureRandom;
+    public SaltService(){
+        try {
+            secureRandom = SecureRandom.getInstance("SHA1PRNG");
+        } catch (NoSuchAlgorithmException e) {
+            e.printStackTrace();
+        }
+    }
+    public byte[] getSalt()  {
         byte[] salt = new byte[16];
-        sr.nextBytes(salt);
+        secureRandom.nextBytes(salt);
         return salt;
     }
 

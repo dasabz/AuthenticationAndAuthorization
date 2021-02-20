@@ -1,7 +1,11 @@
 package services;
 
+import exception.AuthenticationException;
+import exception.RoleAlreadyExistsException;
+import exception.RoleDoesNotExistException;
+import utils.AuthenticationToken;
+import utils.Role;
 import utils.User;
-import utils.UserRole;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -9,43 +13,64 @@ import java.util.List;
 import java.util.Map;
 
 public class RoleService implements interfaces.IRoleService {
-    private final Map<User, List<UserRole>> userRoleMappingCache = new HashMap<>();
-    private final List<UserRole> userRoles = new ArrayList<>();
+    private final AuthenticationService authenticationService;
+    private final Map<User, List<Role>> userRoleMappingCache = new HashMap<>();
+    private final List<Role> roles = new ArrayList<>();
 
-    public RoleService() {
+    public RoleService(AuthenticationService authenticationService) {
+        this.authenticationService = authenticationService;
     }
 
     @Override
-    public boolean createRole(UserRole userRole) {
-        if (!userRoles.contains(userRole)) {
-            userRoles.add(userRole);
-            return true;
+    public void createRole(Role role) throws RoleAlreadyExistsException {
+        if (roles.contains(role)) {
+            throw new RoleAlreadyExistsException("Role "+ role + " already exists");
         }
-        return false;
+        roles.add(role);
     }
 
     @Override
-    public boolean deleteRole(UserRole userRole) {
-        if (userRoles.contains(userRole)) {
-            userRoles.remove(userRole);
-            return true;
-        }
-        return false;
+    public void deleteRole(Role role) throws RoleDoesNotExistException {
+        if (!roles.remove(role))
+            throw new RoleDoesNotExistException("Role "+ role +" does not exist");
     }
 
     @Override
-    public void addRoleToUser(User user, UserRole userRole) {
+    public void addRoleToUser(User user, Role role) throws AuthenticationException {
+        AuthenticationToken authenticationToken = authenticationService.getAuthenticationToken(user);
+        if (authenticationToken == null)
+            throw new AuthenticationException("Failed to authenticate user"+ user + " and thus cannot add roles to user");
+
         if (!userRoleMappingCache.containsKey(user)) {
-            List<UserRole> userRoles = new ArrayList<>();
-            userRoles.add(userRole);
-            userRoleMappingCache.put(user, userRoles);
+            List<Role> roles = new ArrayList<>();
+            roles.add(role);
+            userRoleMappingCache.put(user, roles);
         } else {
-            userRoleMappingCache.get(user).add(userRole);
+            userRoleMappingCache.get(user).add(role);
         }
     }
 
+
     @Override
-    public List<UserRole> getAllRoles(User user) {
-        return userRoleMappingCache.get(user);
+    public List<Role> getAllRoles(User user) throws AuthenticationException {
+        AuthenticationToken authenticationToken = authenticationService.getAuthenticationToken(user);
+        if (authenticationToken != null) {
+            return userRoleMappingCache.get(user);
+        }
+        throw new AuthenticationException("Failed to authenticate user"+ user + " and thus cannot get roles pertaining to user");
+    }
+
+    @Override
+    public boolean checkRole(User user, Role role) throws AuthenticationException {
+        AuthenticationToken authenticationToken = authenticationService.getAuthenticationToken(user);
+        if(authenticationToken != null) {
+            return getAllRoles(user).contains(role);
+        }
+        throw new AuthenticationException("Failed to authenticate user"+ user + " and thus cannot check role for the user");
+    }
+
+    @Override
+    public boolean containsRole(Role role) {
+        return roles.contains(role);
     }
 }
