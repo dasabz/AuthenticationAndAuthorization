@@ -18,3 +18,5 @@
 ##### SaltService can be enhanced in future for adding a different mechanism for adding salt as well as different way of authentication which is more secure
 ##### AuthenticationService can be enhanced in future as well for having pre-expired tokens at user and group level and maybe not to have pre-expired tokens for some admin cases
 ##### AuthenticationFacade being just a manager can be continued to be enhanced as and when more and more microservices keep getting added to the system.
+
+# The test case coverage can be improved maybe to add some more test cases around some corner cases but not added in the interest of time for this exercise.
